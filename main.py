@@ -3,8 +3,6 @@ from lib.board import Board
 
 
 if __name__ == '__main__':
-    fen = "3k4/3Q4/3K4/8/8/8/8/8 w --"
-
     board = Board()
     # info = SearchInfo()
 

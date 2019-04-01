@@ -1,5 +1,7 @@
 import operator
 import sys
+from copy import deepcopy
+from multiprocessing import Queue, Process
 
 from lib.board import Board
 from lib.constants import *
@@ -47,7 +49,7 @@ def is_position_draw(pos: Board) -> bool:
 
 
 def get_winner(pos: Board):
-    """is called everytime a move is made this method is called to check if the game is ended"""
+    """is called every time a move is made this method is called to check if the game is ended"""
 
     if pos.fiftyMove > 100:
         # print("1/2-1/2:fifty move rule (claimed by Hugo)\n")
@@ -92,19 +94,19 @@ def get_winner(pos: Board):
     return NO_PLAYER
 
 
-def search_position(pos: Board) -> int:
-    move = playout(pos, root_side=SIDE_TO_PLAYER_MAP[pos.side], root=True, simulations=5000)
+def search_position(pos: Board, simulations=10000) -> int:
+    move = r_playout_multi(pos, simulations)
     return move
 
 
-def get_killer_move(board: Board, root_side: int):
-    for move in board.generate_moves():
-        success = board.make_move(move)
+def get_killer_move(board_: Board, root_side: int):
+    for move in board_.generate_moves():
+        success = board_.make_move(move)
         if not success:
             continue
 
-        winner = get_winner(board)
-        board.take_move()
+        winner = get_winner(board_)
+        board_.take_move()
 
         if winner is not None:
             if winner == root_side:
@@ -116,19 +118,11 @@ def get_killer_move(board: Board, root_side: int):
     return None, None
 
 
-def playout(board: Board, root_side, root=False, simulations=5000):
-    wins = 0
-    total = 0
-    move_score = {}
+def nr_playout(board_: Board, root_side: int, simulations: int):
+    wins, total = 0, 0
 
-    # Search for forced moves (moves that win the position immediately). If such are found
-    # it assume us or the opponent will definitely play them -> evaluate the whole node to the
-    # result of the forced move
-    has_killer_move, move = get_killer_move(board, root_side)
+    has_killer_move, move = get_killer_move(board_, root_side)
     if has_killer_move is not None:
-        if root:
-            return move
-
         if has_killer_move == root_side:
             wins += 1
         elif has_killer_move == -root_side:
@@ -137,49 +131,97 @@ def playout(board: Board, root_side, root=False, simulations=5000):
         total += 1
         return wins, total  # todo unnecessary maths
 
-    for move in board.generate_moves():
-        success = board.make_move(move)
+    for move in board_.generate_moves():
+        success = board_.make_move(move)
         if not success:
             continue
 
-        winner = get_winner(board)
+        winner = get_winner(board_)
         if winner is None:
-            node_wins, node_total = playout(board, root_side, simulations=simulations)
-            board.take_move()
-
-            # todo if an edge case is found i.e. 0/x or 100%/x -> don't bother looking for other moves ?
+            node_wins, node_total = nr_playout(board_, root_side, simulations)
+            board_.take_move()
 
             wins += node_wins
             total += node_total
 
-            if root:
-                move_score[move] = node_wins / node_total
-            else:
-                # check total simulations so far
-                if total > simulations:
-                    return wins, total
-
-            continue
-
-        board.take_move()  # take back move
-        if winner == root_side:
-            wins += 1
-        elif winner == -root_side:
-            wins -= 1
-
-        total += 1
-
-        if root:  # this can happen when there is only 1 move available and it results in a winner
-            move_score[move] = wins / total
-        else:
             # check total simulations so far
             if total > simulations:
                 return wins, total
+            continue
 
-    if root:
-        # sort moves by their score and return move with highest score
-        move, value = sorted(move_score.items(), key=operator.itemgetter(1))[-1]
-        # print(sorted(move_score.items(), key=operator.itemgetter(1)))
-        return move
+        board_.take_move()  # take back move
+
+        if winner == root_side:  # if winner is the person who triggered the playout, increment counter
+            wins += 1  # todo check if this is ever executed due to the forced/killer move above
+        total += 1
+
+        # check total simulations so far
+        if total > simulations:
+            return wins, total
 
     return wins, total
+
+
+def node_playout(queue: Queue, b_: Board, move: int, root_side: int, simulations: int) -> (int, float):
+    success = b_.make_move(move)
+    if not success:
+        return
+
+    winner = get_winner(b_)
+    if winner is None:
+        node_wins, node_total = nr_playout(b_, root_side, simulations)
+        score = node_wins / node_total
+
+        b_.take_move()
+        queue.put((move, score))
+        return
+
+    b_.take_move()  # take back move
+
+    # if the player who made last move also won
+    score = 1.0 if winner == root_side else 0.0
+    queue.put((move, score))
+
+
+def r_playout_multi(b_: Board, simulations=10000):
+    queue = Queue()  # todo pass pointer to ?
+    processes = []
+
+    # generate tuples of arguments
+    moves = b_.generate_moves()
+    avg_simulations = simulations // len(moves)  # avg simulations per node
+
+    for move in moves:
+        p = Process(target=node_playout, args=(queue, deepcopy(b_), move, SIDE_TO_PLAYER_MAP[b_.side],
+                                               avg_simulations,))
+        processes.append(p)
+        p.start()
+
+    for process in processes:
+        process.join()
+
+    move_score = []
+    while not queue.empty():
+        move_score.append(queue.get())
+
+    # sort moves by their score and return move with highest score
+    move_, value = sorted(move_score, key=operator.itemgetter(1))[-1]
+    print(sorted(move_score, key=operator.itemgetter(1)))
+    return move_
+
+
+if __name__ == '__main__':
+    board = Board()
+    mate_in_3 = 'r5rk/5p1p/5R2/4B3/8/8/7P/7K w --'
+    mate_in_2 = '3k4/Q7/8/3K4/8/8/8/8 w --'
+    board.parse_fen(mate_in_2)
+    print(board)
+
+    while get_winner(board) is None:
+        m = search_position(board, simulations=160000)
+        if m != NO_MOVE:
+            board.make_move(m)
+            print("\n\n***!! Hugo makes move {} !!***\n\n".format(board.moveGenerator.print_move(m)))
+            print(board)
+
+    print('\n\nWinner is:', get_winner(board))
