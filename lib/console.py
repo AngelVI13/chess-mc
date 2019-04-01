@@ -1,90 +1,4 @@
-from lib.constants import *
-from lib.board import Board
-from lib.search import search_position
-
-
-def get_threefold_repetition_count(pos: Board) -> int:
-    """Detects how many repetitions for a given position"""
-    repetition = 0
-
-    for i in range(pos.histPly):
-        if pos.history[i].posKey.value == pos.posKey.value:
-            repetition += 1
-
-    return repetition
-
-
-def is_position_draw(pos: Board) -> bool:
-    """Determine if position is a draw"""
-
-    # if there are pawns on the board the one of the sides can get mated
-    if pos.pieceNumber[WHITE_PAWN] != 0 or pos.pieceNumber[BLACK_PAWN] != 0:
-        return False
-
-    # if there are major pieces on the board the one of the sides can get mated
-    if pos.pieceNumber[WHITE_QUEEN] != 0 or pos.pieceNumber[BLACK_QUEEN] != 0 or pos.pieceNumber[WHITE_ROOK] != 0 or (
-            pos.pieceNumber[BLACK_ROOK] != 0):
-        return False
-
-    if pos.pieceNumber[WHITE_BISHOP] > 1 or pos.pieceNumber[BLACK_BISHOP] > 1:
-        return False
-
-    if pos.pieceNumber[WHITE_KNIGHT] > 1 or pos.pieceNumber[BLACK_KNIGHT] > 1:
-        return False
-
-    if pos.pieceNumber[WHITE_KNIGHT] != 0 and pos.pieceNumber[WHITE_BISHOP] != 0:
-        return False
-
-    if pos.pieceNumber[BLACK_KNIGHT] != 0 and pos.pieceNumber[BLACK_BISHOP] != 0:
-        return False
-
-    return True
-
-
-def get_winner(pos: Board):
-    """is called everytime a move is made this method is called to check if the game is ended"""
-
-    if pos.fiftyMove > 100:
-        print("1/2-1/2:fifty move rule (claimed by Hugo)\n")
-        return DRAW
-
-    if get_threefold_repetition_count(pos) >= 2:
-        print("1/2-1/2:3-fold repetition (claimed by Hugo)\n")
-        return DRAW
-
-    if is_position_draw(pos):
-        print("1/2-1/2:insufficient material (claimed by Hugo)\n")
-        return DRAW
-
-    move_list = pos.generate_moves()
-
-    found = 0
-    for move in move_list:
-        result = pos.make_move(move)
-        if not result:
-            continue
-
-        found += 1
-        pos.take_move()
-        break
-
-    # we have legal moves -> game is not over
-    if found != 0:
-        return None
-
-    in_check = pos.is_square_attacked(pos.kingSquare[pos.side], pos.side ^ 1)
-
-    if in_check:
-        if pos.side == WHITE:
-            print("0-1:black mates (claimed by Hugo)\n")
-            return WINNER_BLACK
-
-        print("1-0:white mates (claimed by Hugo)\n")
-        return WINNER_WHITE
-
-    # not in check but no legal moves left -> stalemate
-    print("\n1/2-1/2:stalemate (claimed by Hugo)\n")
-    return DRAW
+from lib.search import *
 
 
 def console_loop(pos: Board):
@@ -102,7 +16,7 @@ def console_loop(pos: Board):
     pos.parse_fen(START_FEN)
 
     while True:
-        if pos.side == engine_side and get_winner(pos) is not None:
+        if pos.side == engine_side and get_winner(pos) is None:
             # info.StartTime = time.time()
 
             # if moveTime != 0:
@@ -111,6 +25,7 @@ def console_loop(pos: Board):
 
             # pos, info = SearchPosition(pos, info)
             move = search_position(pos)
+            print("\n\n***!! Hugo makes move {} !!***\n\n".format(pos.moveGenerator.print_move(move)))
             pos.make_move(move)
             print(pos)
 

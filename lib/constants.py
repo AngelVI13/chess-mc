@@ -9,9 +9,9 @@ SIDE_CHAR = "wb-"
 START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
 # These values are used for MC simulation
-WINNER_WHITE = 1
-WINNER_BLACK = -1
-DRAW = 0
+PLAYER_WHITE = 1
+PLAYER_BLACK = -1
+NO_PLAYER = 0
 
 EMPTY = 0
 WHITE_PAWN = 1
@@ -91,6 +91,11 @@ PIECE_COLOR_MAP: Dict[int, int] = {
     BLACK_ROOK: BLACK,
     BLACK_QUEEN: BLACK,
     BLACK_KING: BLACK,
+}
+
+SIDE_TO_PLAYER_MAP: Dict[int, int] = {
+    WHITE: PLAYER_WHITE,
+    BLACK: PLAYER_BLACK,
 }
 
 # A list that returns which file a particular square is on
