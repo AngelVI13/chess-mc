@@ -1,18 +1,21 @@
-from constants import *
-from movegenerator import MoveGenerator
+from lib.constants import *
+from lib.movegenerator import MoveGenerator
+from lib.history import Undo
 
 
 class Board:
     def __init__(self):
         self.pieces: List[int] = [0] * BOARD_SQUARE_NUMBER
         self.side: int = 0
-        self.castlePerm: int = 0  # castle permissions
+        self.castlePermissions: int = 0  # castle permissions
         # position key is a unique key stored for each position (used to keep track of 3fold repetition)
         self.posKey: c_uint64 = 0
         self.kingSquare: List[int] = [0] * 2  # White's & black's king position
         self.enPassantSquare: int = 0  # square in which en passant capture is possible
         self.fiftyMove: int = 0  # how many moves from the fifty move rule have been made
         self.histPly: int = 0  # how many half moves have been made
+        # Create fixed size list that stores current position and variables before a move is made
+        self.history: List[Undo] = [Undo() for _ in range(MAX_GAME_MOVES)]
 
         # The piece list below make it easier to determine drawn positions or insufficient material
         self.pieceNumber: List[int] = [0] * 13  # how many pieces of each type are there currently on the board
@@ -52,19 +55,19 @@ class Board:
 
         # Compute castling permissions. w_kca - white kingside castling, b_qca - black queenside castling etc
         w_kca = "-"
-        if self.castlePerm & WHITE_KING_CASTLING != 0:
+        if self.castlePermissions & WHITE_KING_CASTLING != 0:
             w_kca = "K"
 
         w_qca = "-"
-        if self.castlePerm & WHITE_QUEEN_CASTLING != 0:
+        if self.castlePermissions & WHITE_QUEEN_CASTLING != 0:
             w_qca = "Q"
 
         b_kca = "-"
-        if self.castlePerm & BLACK_KING_CASTLING != 0:
+        if self.castlePermissions & BLACK_KING_CASTLING != 0:
             b_kca = "k"
 
         b_qca = "-"
-        if self.castlePerm & BLACK_QUEEN_CASTLING != 0:
+        if self.castlePermissions & BLACK_QUEEN_CASTLING != 0:
             b_qca = "q"
 
         board_rep.append("castle: {}{}{}{}\n".format(w_kca, w_qca, b_kca, b_qca))
@@ -78,7 +81,7 @@ class Board:
 
         for sq in range(BOARD_SQUARE_NUMBER):
             piece = self.pieces[sq]
-            # Do not calculate hashkey for squares that are not on the actual board, i.e. have value of NoSquare
+            # Do not calculate hashkey for squares that are not on the actual board, i.e. have value of NO_SQUARE
             # Also do not calculate hashkey for an empty square
             if piece != NO_SQUARE and piece != EMPTY and piece != OFF_BOARD:
                 # Check if we have a valid piece
@@ -95,9 +98,9 @@ class Board:
             # => the hashkeys for value empty are used for en passant hash calculations
             final_key ^= self.hashData.pieceKeys[EMPTY][self.enPassantSquare]
 
-        assert 0 <= self.castlePerm <= 15
+        assert 0 <= self.castlePermissions <= 15
 
-        final_key ^= self.hashData.castleKeys[self.castlePerm]
+        final_key ^= self.hashData.castleKeys[self.castlePermissions]
 
         return c_uint64(final_key)
 
@@ -121,7 +124,7 @@ class Board:
         self.enPassantSquare = NO_SQUARE
         self.fiftyMove = 0
         self.histPly = 0
-        self.castlePerm = 0
+        self.castlePermissions = 0
         self.posKey = 0
 
     def _parse_fen_pieces(self, fen) -> int:
@@ -136,7 +139,7 @@ class Board:
             char = fen[char_idx]
 
             if char in PIECE_NOTATION_MAP:
-                # If we have a piece related char -> set the piece to corresponding value, i.e p -> BlackPawn
+                # If we have a piece related char -> set the piece to corresponding value, i.e p -> BLACK_PAWN
                 piece = PIECE_NOTATION_MAP[char]
             elif char in ("1", "2", "3", "4", "5", "6", "7", "8"):
                 # otherwise it must be a count of a number of empty squares
@@ -189,19 +192,19 @@ class Board:
 
             # Depending on the char, enable the corresponding castling permission related bit
             if char is "K":
-                self.castlePerm |= WHITE_KING_CASTLING
+                self.castlePermissions |= WHITE_KING_CASTLING
             elif char is "Q":
-                self.castlePerm |= WHITE_QUEEN_CASTLING
+                self.castlePermissions |= WHITE_QUEEN_CASTLING
             elif char is "k":
-                self.castlePerm |= BLACK_KING_CASTLING
+                self.castlePermissions |= BLACK_KING_CASTLING
             elif char is "q":
-                self.castlePerm |= BLACK_QUEEN_CASTLING
+                self.castlePermissions |= BLACK_QUEEN_CASTLING
             else:
                 break
 
             char_idx += 1
 
-        assert 0 <= self.castlePerm <= 15
+        assert 0 <= self.castlePermissions <= 15
         # move to the en passant square related part of FEN
         char_idx += 1
         char = fen[char_idx]
@@ -217,7 +220,7 @@ class Board:
 
             self.enPassantSquare = convert_file_rank_to_square(file, rank)
 
-    def parse_fen(self, fen):
+    def parse_fen(self, fen: str):
         """parse fen position string and setup a position accordingly"""
 
         assert (fen != "")
@@ -241,6 +244,56 @@ class Board:
 
                 if piece == WHITE_KING or piece == BLACK_KING:
                     self.kingSquare[colour] = index
+
+    def parse_move(self, move_str: str) -> int:
+        """Parses user move and returns the MOVE int value from the GeneratedMoves for the
+        position, that matches the moveStr input. For example if moveStr = 'a2a3'
+        loops over all possible moves for the position, finds that move int i.e. 1451231 and returns it
+        """
+        # check if files for 'from' and 'to' squares are valid i.e. between 1-8
+        if move_str[1] > "8" or move_str[1] < "1":
+            return NO_MOVE
+
+        if move_str[3] > "8" or move_str[3] < "1":
+            return NO_MOVE
+
+        # check if ranks for 'from' and 'to' squares are valid i.e. between a-h
+        if move_str[0] > "h" or move_str[0] < "a":
+            return NO_MOVE
+
+        if move_str[2] > "h" or move_str[2] < "a":
+            return NO_MOVE
+
+        from_ = convert_file_rank_to_square((ord(move_str[0]) - ord("a")), (ord(move_str[1]) - ord("1")))
+        to = convert_file_rank_to_square((ord(move_str[2]) - ord("a")), (ord(move_str[3]) - ord("1")))
+
+        # print("Move string: {}, from: {} to: {}".format(move_str, from_, to))
+
+        assert self.is_square_on_board(from_) and self.is_square_on_board(to)
+
+        move_list = self.generate_moves()
+
+        for move_ in move_list:
+            # print('From: {}, to: {}'.format(FromSq(move), ToSq(move)))
+            if get_from_square(move_) == from_ and get_to_square(move_) == to:
+                prom_piece = get_promoted_bits(move_)
+                if prom_piece != EMPTY:
+                    if IS_PIECE_ROOK_QUEEN[prom_piece] and not IS_PIECE_BISHOP_QUEEN[prom_piece] and move_str[4] == "r":
+                        return move_
+                    elif not IS_PIECE_ROOK_QUEEN[prom_piece] and IS_PIECE_BISHOP_QUEEN[prom_piece] and (
+                            move_str[4] == "b"):
+                        return move_
+                    elif IS_PIECE_ROOK_QUEEN[prom_piece] and IS_PIECE_BISHOP_QUEEN[prom_piece] and move_str[4] == "q":
+                        return move_
+                    elif IS_PIECE_KNIGHT[prom_piece] and move_str[4] == "n":
+                        return move_
+
+                    continue
+
+                # must not be a promotion -> return move
+                return move_
+
+        return NO_MOVE
 
     @staticmethod
     def is_square_on_board(square) -> bool:
@@ -326,6 +379,216 @@ class Board:
     def generate_moves(self):
         return self.moveGenerator.generate_all_moves()
 
+    # MakeMove perform a move
+    # return False if the side to move has left themselves in check after the move i.e. illegal move
+    def make_move(self, move_: int) -> bool:
+        from_ = get_from_square(move_)
+        to = get_to_square(move_)
+
+        # Make sure all input info is valid
+        assert self.is_square_on_board(from_)
+        assert self.is_square_on_board(to)
+        assert self.is_side_valid(self.side)
+        assert self.is_piece_valid(self.pieces[from_])
+
+        # Store has value before we do any hashing in/out of pieces etc
+        history_element = self.history[self.histPly]  # get pointer to history element and update its values
+        history_element.posKey = self.posKey
+
+        # if this is an en passant move
+        if move_ & MOVE_FLAG_ENPASS != 0:
+            # if the side thats making the capture is white
+            # then we need to remove the black pawn right behind the new position of the white piece
+            # i.e. new_pos - 10 -> translated to array index
+            if self.side == WHITE:
+                self.clear_piece(to - 10)
+            else:
+                self.clear_piece(to + 10)
+
+        elif move_ & MOVE_FLAG_CASTLE != 0:
+            # if its a castling move, based on the TO square, make the appopriate move, otherwise assert False
+            if to == C1:
+                self.move_piece(A1, D1)
+            elif to == C8:
+                self.move_piece(A8, D8)
+            elif to == G1:
+                self.move_piece(H1, F1)
+            elif to == G8:
+                self.move_piece(H8, F8)
+            else:
+                pass
+
+        # If the current enpassant square is SET, then we hash in the poskey
+        if self.enPassantSquare != NO_SQUARE:
+            self.hashData.hash_enpassant(self)
+
+        self.hashData.hash_castle_permissions(self)  # hash out the castling permissions
+
+        # store information to the history array about this move
+        history_element = self.history[self.histPly]  # get pointer to history element and update its values
+        history_element.move = move_
+        history_element.fiftyMove = self.fiftyMove
+        history_element.enPassantSquare = self.enPassantSquare
+        history_element.castlePermissions = self.castlePermissions
+
+        # if a rook or king has moved the remove the respective castling permission from_ castlePermissions
+        self.castlePermissions &= self.hashData.CASTLE_PERMISSIONS[from_]
+        self.castlePermissions &= self.hashData.CASTLE_PERMISSIONS[to]
+        self.enPassantSquare = NO_SQUARE  # set enpassant square to no square
+
+        self.hashData.hash_castle_permissions(self)  # hash back in the castling perm
+
+        self.fiftyMove += 1  # increment fifty move rule
+
+        # get what piece, if any, was captured in the move and if somethig was actually captured
+        # i.e. captured piece is not empty remove captured piece and reset fifty move rule
+        captured = get_captured_bits(move_)
+        if captured != EMPTY:
+            assert self.is_piece_valid(captured)
+            self.clear_piece(to)
+            self.fiftyMove = 0
+
+        # increase half-move counter and ply counter values
+        self.histPly += 1
+
+        # check if we need to set a new en passant square i.e. if this is a pawn start
+        # then depending on the side find the piece just behind the new pawn destination
+        # i.e. A4 -> compute A3 and set that as a possible enpassant capture square
+        if IS_PIECE_PAWN[self.pieces[from_]]:
+            self.fiftyMove = 0
+            if move_ & MOVE_FLAG_PAWN_START != 0:
+                if self.side == WHITE:
+                    self.enPassantSquare = from_ + 10
+                    assert RanksBoard[self.enPassantSquare] == RANK_3
+                else:
+                    self.enPassantSquare = from_ - 10
+                    assert RanksBoard[self.enPassantSquare] == RANK_6
+
+                self.hashData.hash_enpassant(self)  # hash in the enpass
+
+        self.move_piece(from_, to)
+
+        # get promoted piece and if its not empty, clear old piece (pawn)
+        # and add new piece (whatever was the selected promotion piece)
+        promoted_piece = get_promoted_bits(move_)
+        if promoted_piece != EMPTY:
+            assert self.is_piece_valid(promoted_piece) and not IS_PIECE_PAWN[promoted_piece]
+            self.clear_piece(to)
+            self.add_piece(to, promoted_piece)
+
+        # if we move the king -> update king square
+        if IS_PIECE_KING[self.pieces[to]]:
+            self.kingSquare[self.side] = to
+
+        # need to save current side before flipping side bit in order to check if opponent is attacking
+        side = self.side
+        self.side ^= 1  # change side to move
+        self.hashData.hash_side(self)  # hash in the new side
+
+        # check if after this move, our king is in check -> if yes -> illegal move
+        if self.is_square_attacked(self.kingSquare[side], self.side):
+            self.take_move()
+            return False
+
+        return True
+
+    # TakeMove revert move, opposite to MakeMove()
+    def take_move(self):
+        self.histPly -= 1
+
+        move_ = self.history[self.histPly].move
+        from_ = get_from_square(move_)
+        to = get_to_square(move_)
+
+        assert self.is_square_on_board(from_)
+        assert self.is_square_on_board(to)
+
+        if self.enPassantSquare != NO_SQUARE:
+            self.hashData.hash_enpassant(self)
+
+        self.hashData.hash_castle_permissions(self)
+
+        self.castlePermissions = self.history[self.histPly].castlePermissions
+        self.fiftyMove = self.history[self.histPly].fiftyMove
+        self.enPassantSquare = self.history[self.histPly].enPassantSquare
+
+        if self.enPassantSquare != NO_SQUARE:
+            self.hashData.hash_enpassant(self)
+
+        self.hashData.hash_castle_permissions(self)
+
+        self.side ^= 1
+        self.hashData.hash_side(self)
+
+        if MOVE_FLAG_ENPASS & move_ != 0:
+            if self.side == WHITE:
+                self.add_piece(to - 10, BLACK_PAWN)
+            else:
+                self.add_piece(to + 10, WHITE_PAWN)
+
+        elif MOVE_FLAG_CASTLE & move_ != 0:
+            if to == C1:
+                self.move_piece(D1, A1)
+            elif to == C8:
+                self.move_piece(D8, A8)
+            elif to == G1:
+                self.move_piece(F1, H1)
+            elif to == G8:
+                self.move_piece(F8, H8)
+            else:
+                pass
+                assert False  # todo ?
+
+        self.move_piece(to, from_)
+
+        if IS_PIECE_KING[self.pieces[from_]]:
+            self.kingSquare[self.side] = from_
+
+        captured = get_captured_bits(move_)
+        if captured != EMPTY:
+            assert (self.is_piece_valid(captured))
+            self.add_piece(to, captured)
+
+        promoted = get_promoted_bits(move_)
+        if promoted != EMPTY:
+            assert self.is_piece_valid(get_promoted_bits(move_)) and not IS_PIECE_PAWN[get_promoted_bits(move_)]
+            self.clear_piece(from_)
+            if PIECE_COLOR_MAP[get_promoted_bits(move_)] == WHITE:
+                self.add_piece(from_, WHITE_PAWN)
+            else:
+                self.add_piece(from_, BLACK_PAWN)
+
+    def clear_piece(self, sq: int):
+        assert self.is_square_on_board(sq)
+        piece = self.pieces[sq]
+        assert self.is_piece_valid(piece)
+
+        self.hashData.hash_piece(piece, sq, self)
+        self.pieces[sq] = EMPTY
+        self.pieceNumber[piece] -= 1
+
+    def add_piece(self, sq: int, piece: int):
+        assert self.is_piece_valid(piece)
+        assert self.is_square_on_board(sq)
+
+        self.hashData.hash_piece(piece, sq, self)
+
+        self.pieces[sq] = piece
+        self.pieceNumber[piece] += 1
+
+    def move_piece(self, from_: int, to: int):
+        assert self.is_square_on_board(from_)
+        assert self.is_square_on_board(to)
+
+        piece = self.pieces[from_]
+
+        # hash the piece out of the from square and then later hash it back in to the new square
+        self.hashData.hash_piece(piece, from_, self)
+        self.pieces[from_] = EMPTY
+
+        self.hashData.hash_piece(piece, to, self)
+        self.pieces[to] = piece
+
 
 def initialize_square_convertion_lists():
     """Initializes square convertions lists to map from 120 to 64 based board representation"""
@@ -370,5 +633,3 @@ if __name__ == '__main__':
     print(b)
     moves = b.generate_moves()
     print(len(moves))
-    for move in moves:
-        print(b.moveGenerator.print_move(move))

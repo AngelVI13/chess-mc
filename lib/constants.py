@@ -3,10 +3,15 @@ from random import getrandbits
 from typing import List, Dict
 
 BOARD_SQUARE_NUMBER = 120
+MAX_GAME_MOVES = 2048  # maximum number halfmoves allowed
 PIECE_CHARACTER_STRING = ".PNBRQKpnbrqk"
 SIDE_CHAR = "wb-"
 START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
+# These values are used for MC simulation
+WINNER_WHITE = 1
+WINNER_BLACK = -1
+DRAW = 0
 
 EMPTY = 0
 WHITE_PAWN = 1
@@ -22,14 +27,12 @@ BLACK_ROOK = 10
 BLACK_QUEEN = 11
 BLACK_KING = 12
 
-
 RANK_1, RANK_2, RANK_3, RANK_4, RANK_5, RANK_6, RANK_7, RANK_8, RANK_NONE = range(9)
 FILE_A, FILE_B, FILE_C, FILE_D, FILE_E, FILE_F, FILE_G, FILE_H, FILE_NONE = range(9)
 
 WHITE = 0
 BLACK = 1
 BOTH = 2
-
 
 # Defines for board square indexes based on 120-square board
 A1, B1, C1, D1, E1, F1, G1, H1 = range(21, 28 + 1)  # Rank 1
@@ -43,6 +46,7 @@ A8, B8, C8, D8, E8, F8, G8, H8 = range(91, 98 + 1)  # Rank 8
 # No square
 NO_SQUARE = 99
 OFF_BOARD = 100
+NO_MOVE = 0  # signifies no move
 
 # PieceNotationMap maps piece notations (i.e. 'p', 'N') to piece values (i.e. 'BlackPawn', 'WhiteKnight')
 PIECE_NOTATION_MAP = {
@@ -265,6 +269,26 @@ class HashData:
 
         self._fill_values()  # Generate values of all hash related fields
 
+        # CastlePerm used to simplify hashing castle permissions
+        # Everytime we make a move we will take pos.castlePermissions &= CastlePerm[sq]
+        # in this way if any of the rooks or the king moves, the castle permission will be
+        # disabled for that side. In any other move, the castle permissions will remain the
+        # same, since 15 is the max number associated with all possible castling permissions
+        # for both sides
+        self.CASTLE_PERMISSIONS = [
+            15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
+            15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
+            15, 13, 15, 15, 15, 12, 15, 15, 14, 15,
+            15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
+            15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
+            15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
+            15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
+            15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
+            15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
+            15, 7, 15, 15, 15, 3, 15, 15, 11, 15,
+            15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
+            15, 15, 15, 15, 15, 15, 15, 15, 15, 15]
+
     def _fill_values(self):
         """initializes hashkeys for all pieces and possible positions, for castling rights, for side to move"""
 
@@ -275,3 +299,50 @@ class HashData:
         self.sideKey = getrandbits(64)
         for i in range(16):
             self.castleKeys[i] = getrandbits(64)
+
+    #  -= 1- Hashing 'macros'  -= 1-
+    def hash_piece(self, piece: int, sq: int, pos):
+        pos.posKey = c_uint64(pos.posKey.value ^ self.pieceKeys[piece][sq])
+
+    def hash_castle_permissions(self, pos):
+        pos.posKey = c_uint64(pos.posKey.value ^ self.castleKeys[pos.castlePermissions])
+
+    def hash_side(self, pos):
+        pos.posKey = c_uint64(pos.posKey.value ^ self.sideKey)
+
+    def hash_enpassant(self, pos):
+        pos.posKey = c_uint64(pos.posKey.value ^ self.pieceKeys[EMPTY][pos.enPassantSquare])
+
+
+# Game move - information stored in the move int from type Move
+#    | |-P|-|||Ca-||---To--||-From-|
+# 0000 0000 0000 0000 0000 0111 1111 -> From - 0x7F
+# 0000 0000 0000 0011 1111 1000 0000 -> To - >> 7, 0x7F
+# 0000 0000 0011 1100 0000 0000 0000 -> Captured - >> 14, 0xF
+# 0000 0000 0100 0000 0000 0000 0000 -> En passant capt - 0x40000
+# 0000 0000 1000 0000 0000 0000 0000 -> PawnStart - 0x80000
+# 0000 1111 0000 0000 0000 0000 0000 -> Promotion to what piece - >> 20, 0xF
+# 0001 0000 0000 0000 0000 0000 0000 -> Castle - 0x1000000
+
+def get_from_square(move: int) -> int:
+    return move & 0x7f
+
+
+def get_to_square(move: int) -> int:
+    return (move >> 7) & 0x7f
+
+
+def get_captured_bits(move: int) -> int:
+    return (move >> 14) & 0xf
+
+
+def get_promoted_bits(move: int) -> int:
+    return (move >> 20) & 0xf
+
+
+MOVE_FLAG_ENPASS = 0x40000  # move flag that denotes if the capture was an enpass
+MOVE_FLAG_PAWN_START = 0x80000  # move flag that denotes if move was pawn start (2x)
+MOVE_FLAG_CASTLE = 0x1000000  # move flag that denotes if move was castling
+# move flag that denotes if move was capture without saying what the capture was (checks capture & enpas squares)
+MOVE_FLAG_CAPTURE = 0x7C000
+MOVE_FLAG_PROMOTION = 0xF00000  # move flag that denotes if move was promotion without saying what the promotion was

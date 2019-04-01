@@ -1,6 +1,6 @@
 import unittest
-from ..constants import START_FEN, BLACK
-from ..board import Board
+from lib.constants import START_FEN, BLACK
+from lib.board import Board
 
 
 class TestMoveGenerator(unittest.TestCase):

@@ -1,42 +1,4 @@
-from constants import *
-
-
-# Game move - information stored in the move int from type Move
-#    | |-P|-|||Ca-||---To--||-From-|
-# 0000 0000 0000 0000 0000 0111 1111 -> From - 0x7F
-# 0000 0000 0000 0011 1111 1000 0000 -> To - >> 7, 0x7F
-# 0000 0000 0011 1100 0000 0000 0000 -> Captured - >> 14, 0xF
-# 0000 0000 0100 0000 0000 0000 0000 -> En passant capt - 0x40000
-# 0000 0000 1000 0000 0000 0000 0000 -> PawnStart - 0x80000
-# 0000 1111 0000 0000 0000 0000 0000 -> Promotion to what piece - >> 20, 0xF
-# 0001 0000 0000 0000 0000 0000 0000 -> Castle - 0x1000000
-
-# FromSq - macro that returns the 'from' bits from the move int
-def FromSq(m: int) -> int:
-    return m & 0x7f
-
-
-# ToSq - macro that returns the 'to' bits from the move int
-def ToSq(m: int) -> int:
-    return (m >> 7) & 0x7f
-
-
-# Captured - macro that returns the 'Captured' bits from the move int
-def Captured(m: int) -> int:
-    return (m >> 14) & 0xf
-
-
-# Promoted - macro that returns the 'Promoted' bits from the move int
-def Promoted(m: int) -> int:
-    return (m >> 20) & 0xf
-
-
-MoveFlagEnPass = 0x40000  # move flag that denotes if the capture was an enpass
-MoveFlagPawnStart = 0x80000  # move flag that denotes if move was pawn start (2x)
-MoveFlagCastle = 0x1000000  # move flag that denotes if move was castling
-# move flag that denotes if move was capture without saying what the capture was (checks capture & enpas squares)
-MoveFlagCapture = 0x7C000
-MoveFlagPromotion = 0xF00000  # move flag that denotes if move was promotion without saying what the promotion was
+from lib.constants import *
 
 
 # get_move_int creates and returns a move int from given move information
@@ -66,12 +28,12 @@ class MoveGenerator:
 
     @staticmethod
     def print_move(move: int) -> str:
-        file_from = FilesBoard[FromSq(move)]
-        rank_from = RanksBoard[FromSq(move)]
-        file_to = FilesBoard[ToSq(move)]
-        rank_to = RanksBoard[ToSq(move)]
+        file_from = FilesBoard[get_from_square(move)]
+        rank_from = RanksBoard[get_from_square(move)]
+        file_to = FilesBoard[get_to_square(move)]
+        rank_to = RanksBoard[get_to_square(move)]
 
-        promoted = Promoted(move)
+        promoted = get_promoted_bits(move)
 
         move_str = (chr(ord("a") + file_from) + chr(ord("1") + rank_from) +
                     chr(ord("a") + file_to) + chr(ord("1") + rank_to))
@@ -155,7 +117,8 @@ class MoveGenerator:
 
         return move_list
 
-    def empty_handler(self, *args, **kwargs):
+    # noinspection PyMethodMayBeStatic
+    def empty_handler(self, *_):
         return []
 
     def generate_pawn_moves(self, sq, _) -> List:
@@ -178,7 +141,7 @@ class MoveGenerator:
             # if we are on the second rank, generate a double pawn move if 4th rank sq is empty
             if RanksBoard[sq] == pawn_rank and self.pos.pieces[sq + forward_two_sq] == EMPTY:
                 # don't forget to set the flag for PAWN START
-                move_list.append(get_move_int(sq, (sq + forward_two_sq), EMPTY, EMPTY, MoveFlagPawnStart))
+                move_list.append(get_move_int(sq, (sq + forward_two_sq), EMPTY, EMPTY, MOVE_FLAG_PAWN_START))
 
         # Capture to the left and right
         # check if the square that we are capturing on is on the board and that it has a black piece on it
@@ -196,10 +159,10 @@ class MoveGenerator:
         if self.pos.enPassantSquare != NO_SQUARE:
             # check if the sq+9 square is equal to the enpassant square that we have stored in our pos
             if sq + capture_left_sq == self.pos.enPassantSquare:
-                move_list.append(get_move_int(sq, sq + capture_left_sq, EMPTY, EMPTY, MoveFlagEnPass))
+                move_list.append(get_move_int(sq, sq + capture_left_sq, EMPTY, EMPTY, MOVE_FLAG_ENPASS))
 
             if sq + capture_right_sq == self.pos.enPassantSquare:
-                move_list.append(get_move_int(sq, sq + capture_right_sq, EMPTY, EMPTY, MoveFlagEnPass))
+                move_list.append(get_move_int(sq, sq + capture_right_sq, EMPTY, EMPTY, MOVE_FLAG_ENPASS))
 
         return move_list
 
@@ -253,27 +216,27 @@ class MoveGenerator:
             # here we do not check if square G1 (final square after castling) is attacked
             # this will be handled at the end of the deftion where we will verify that all generated
             # moves are legal
-            if (self.pos.castlePerm & WHITE_KING_CASTLING) != 0:
+            if (self.pos.castlePermissions & WHITE_KING_CASTLING) != 0:
                 if self.pos.pieces[F1] == EMPTY and self.pos.pieces[G1] == EMPTY:
                     if not self.pos.is_square_attacked(E1, BLACK) and not self.pos.is_square_attacked(F1, BLACK):
-                        move_list.append(get_move_int(E1, G1, EMPTY, EMPTY, MoveFlagCastle))
+                        move_list.append(get_move_int(E1, G1, EMPTY, EMPTY, MOVE_FLAG_CASTLE))
 
-            if (self.pos.castlePerm & WHITE_QUEEN_CASTLING) != 0:
+            if (self.pos.castlePermissions & WHITE_QUEEN_CASTLING) != 0:
                 if self.pos.pieces[D1] == EMPTY and self.pos.pieces[C1] == EMPTY and self.pos.pieces[B1] == EMPTY:
                     if not self.pos.is_square_attacked(E1, BLACK) and not self.pos.is_square_attacked(D1, BLACK):
-                        move_list.append(get_move_int(E1, C1, EMPTY, EMPTY, MoveFlagCastle))
+                        move_list.append(get_move_int(E1, C1, EMPTY, EMPTY, MOVE_FLAG_CASTLE))
 
         else:
             # castling
-            if (self.pos.castlePerm & BLACK_KING_CASTLING) != 0:
+            if (self.pos.castlePermissions & BLACK_KING_CASTLING) != 0:
                 if self.pos.pieces[F8] == EMPTY and self.pos.pieces[G8] == EMPTY:
                     if not self.pos.is_square_attacked(E8, WHITE) and not self.pos.is_square_attacked(F8, WHITE):
-                        move_list.append(get_move_int(E8, G8, EMPTY, EMPTY, MoveFlagCastle))
+                        move_list.append(get_move_int(E8, G8, EMPTY, EMPTY, MOVE_FLAG_CASTLE))
 
-            if (self.pos.castlePerm & BLACK_QUEEN_CASTLING) != 0:
+            if (self.pos.castlePermissions & BLACK_QUEEN_CASTLING) != 0:
                 if self.pos.pieces[D8] == EMPTY and self.pos.pieces[C8] == EMPTY and self.pos.pieces[B8] == EMPTY:
                     if not self.pos.is_square_attacked(E8, WHITE) and not self.pos.is_square_attacked(D8, WHITE):
-                        move_list.append(get_move_int(E8, C8, EMPTY, EMPTY, MoveFlagCastle))
+                        move_list.append(get_move_int(E8, C8, EMPTY, EMPTY, MOVE_FLAG_CASTLE))
 
         return move_list
 
