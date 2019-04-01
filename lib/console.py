@@ -111,6 +111,8 @@ def console_loop(pos: Board):
 
             # pos, info = SearchPosition(pos, info)
             move = search_position(pos)
+            pos.make_move(move)
+            print(pos)
 
         command = input("\nHugo > ")
         if len(command) < 2:
