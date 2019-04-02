@@ -98,13 +98,6 @@ SIDE_TO_PLAYER_MAP: Dict[int, int] = {
     BLACK: PLAYER_BLACK,
 }
 
-# A list that returns which file a particular square is on
-FilesBoard: List[int] = [OFF_BOARD] * BOARD_SQUARE_NUMBER
-
-# A list that returns which file a particular square is on
-RanksBoard: List[int] = [OFF_BOARD] * BOARD_SQUARE_NUMBER
-
-
 # --- Maps used to quickly resolve the type of a piece regardless of its colour
 IS_PIECE_KNIGHT: Dict[int, bool] = {
     EMPTY: False,

@@ -24,7 +24,7 @@ def console_loop(pos: Board):
             #     info.StopTime = moveTime
 
             # pos, info = SearchPosition(pos, info)
-            move = search_position(pos)
+            move = search_position(pos, simulations=1000)
             print("\n\n***!! Hugo makes move {} !!***\n\n".format(pos.moveGenerator.print_move(move)))
             pos.make_move(move)
             print(pos)

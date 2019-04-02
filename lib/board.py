@@ -1,4 +1,5 @@
 from lib.constants import *
+from lib.conversion import Conversion, convert_file_rank_to_square
 from lib.movegenerator import MoveGenerator
 from lib.history import Undo
 
@@ -23,10 +24,7 @@ class Board:
         # Create related objects
         self.hashData = HashData()
         self.moveGenerator = MoveGenerator(self)
-
-        # Initialize convertion tables
-        initialize_square_convertion_lists()  # todo potentially move somewhere else
-        initialize_file_rank_board()  # todo potentially move somewhere else
+        self.conversion = Conversion()
 
     def __str__(self):
         board_rep = ["\nGame Board:\n\n"]
@@ -111,7 +109,7 @@ class Board:
 
         # Set all real board positions to EMPTY
         for i in range(64):
-            self.pieces[Sq64ToSq120[i]] = EMPTY
+            self.pieces[self.conversion.Sq64ToSq120[i]] = EMPTY
 
         # Reset piece number
         for i in range(13):  # todo replace magical number
@@ -159,7 +157,7 @@ class Board:
             # When it comes to a piece that is different that "1"-"8" it places it on the corresponding square
             for i in range(count):
                 sq64 = rank * 8 + file
-                sq120 = Sq64ToSq120[sq64]
+                sq120 = self.conversion.Sq64ToSq120[sq64]
                 if piece != EMPTY:
                     self.pieces[sq120] = piece
 
@@ -295,9 +293,8 @@ class Board:
 
         return NO_MOVE
 
-    @staticmethod
-    def is_square_on_board(square) -> bool:
-        return FilesBoard[square] != OFF_BOARD
+    def is_square_on_board(self, square) -> bool:
+        return self.conversion.FilesBoard[square] != OFF_BOARD
 
     @staticmethod
     def is_side_valid(side) -> bool:
@@ -459,10 +456,10 @@ class Board:
             if move_ & MOVE_FLAG_PAWN_START != 0:
                 if self.side == WHITE:
                     self.enPassantSquare = from_ + 10
-                    assert RanksBoard[self.enPassantSquare] == RANK_3
+                    assert self.conversion.RanksBoard[self.enPassantSquare] == RANK_3
                 else:
                     self.enPassantSquare = from_ - 10
-                    assert RanksBoard[self.enPassantSquare] == RANK_6
+                    assert self.conversion.RanksBoard[self.enPassantSquare] == RANK_6
 
                 self.hashData.hash_enpassant(self)  # hash in the enpass
 
@@ -588,40 +585,6 @@ class Board:
 
         self.hashData.hash_piece(piece, to, self)
         self.pieces[to] = piece
-
-
-def initialize_square_convertion_lists():
-    """Initializes square convertions lists to map from 120 to 64 based board representation"""
-    sq64 = 0
-    for rank in range(RANK_8 + 1):
-        for file in range(FILE_H + 1):
-            sq = convert_file_rank_to_square(file, rank)
-            Sq64ToSq120[sq64] = sq
-            Sq120ToSq64[sq] = sq64
-            sq64 += 1
-
-
-# Sq120ToSq64 would return the index of 120 mapped to a 64 square board
-Sq120ToSq64: List[int] = [0]*BOARD_SQUARE_NUMBER
-
-# Sq64ToSq120 would return the index of 64 mapped to a 120 square board
-Sq64ToSq120: List[int] = [0]*64
-
-
-def initialize_file_rank_board():
-    """initialize lists that hold information about which rank & file a square is on the board"""
-    # todo this method could be merged exactly with initialize_square_convertion_lists() !!!
-
-    for rank in range(RANK_8 + 1):
-        for file in range(FILE_H + 1):
-            sq = convert_file_rank_to_square(file, rank)
-            FilesBoard[sq] = file
-            RanksBoard[sq] = rank
-
-
-def convert_file_rank_to_square(file: int, rank: int) -> int:
-    """Converts given file and rank to a square index (120-based)"""
-    return (21 + file) + (rank * 10)
 
 
 if __name__ == '__main__':

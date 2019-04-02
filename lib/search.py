@@ -206,22 +206,32 @@ def r_playout_multi(b_: Board, simulations=10000):
 
     # sort moves by their score and return move with highest score
     move_, value = sorted(move_score, key=operator.itemgetter(1))[-1]
-    print(sorted(move_score, key=operator.itemgetter(1)))
+    # l = sorted(move_score, key=operator.itemgetter(1))
+    # new_l = []
+    # for move_int, score in l:
+    #     new_l.append((b_.moveGenerator.print_move(move_int), score))
+    # print(new_l)
     return move_
 
 
 if __name__ == '__main__':
     board = Board()
-    mate_in_3 = 'r5rk/5p1p/5R2/4B3/8/8/7P/7K w --'
+    mate_in_3 = 'r5rk/5p1p/5R2/4B3/8/8/7P/7K w --'  # todo doesn't find forced move here...
     mate_in_2 = '3k4/Q7/8/3K4/8/8/8/8 w --'
-    board.parse_fen(mate_in_2)
+    board.parse_fen(mate_in_3)
     print(board)
 
-    while get_winner(board) is None:
-        m = search_position(board, simulations=160000)
-        if m != NO_MOVE:
-            board.make_move(m)
-            print("\n\n***!! Hugo makes move {} !!***\n\n".format(board.moveGenerator.print_move(m)))
-            print(board)
+    m = search_position(board, simulations=600000)
+    if m != NO_MOVE:
+        board.make_move(m)
+        print("\n\n***!! Hugo makes move {} !!***\n\n".format(board.moveGenerator.print_move(m)))
+        print(board)
 
-    print('\n\nWinner is:', get_winner(board))
+    # while get_winner(board) is None:
+    #     m = search_position(board, simulations=500000)
+    #     if m != NO_MOVE:
+    #         board.make_move(m)
+    #         print("\n\n***!! Hugo makes move {} !!***\n\n".format(board.moveGenerator.print_move(m)))
+    #         print(board)
+    #
+    # print('\n\nWinner is:', get_winner(board))

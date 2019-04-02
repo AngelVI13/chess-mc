@@ -26,12 +26,11 @@ class MoveGenerator:
             BLACK_KING: self.generate_non_sliding_moves,
         }
 
-    @staticmethod
-    def print_move(move: int) -> str:
-        file_from = FilesBoard[get_from_square(move)]
-        rank_from = RanksBoard[get_from_square(move)]
-        file_to = FilesBoard[get_to_square(move)]
-        rank_to = RanksBoard[get_to_square(move)]
+    def print_move(self, move: int) -> str:
+        file_from = self.pos.conversion.FilesBoard[get_from_square(move)]
+        rank_from = self.pos.conversion.RanksBoard[get_from_square(move)]
+        file_to = self.pos.conversion.FilesBoard[get_to_square(move)]
+        rank_to = self.pos.conversion.RanksBoard[get_to_square(move)]
 
         promoted = get_promoted_bits(move)
 
@@ -58,7 +57,7 @@ class MoveGenerator:
         assert self.pos.is_square_on_board(from_)
         assert self.pos.is_square_on_board(to)
 
-        if RanksBoard[from_] == RANK_7:
+        if self.pos.conversion.RanksBoard[from_] == RANK_7:
             # add all promotion with capture related moves
             move_list.append(get_move_int(from_, to, cap, WHITE_QUEEN, 0))
             move_list.append(get_move_int(from_, to, cap, WHITE_ROOK, 0))
@@ -74,7 +73,7 @@ class MoveGenerator:
         assert self.pos.is_square_on_board(from_)
         assert self.pos.is_square_on_board(to)
 
-        if RanksBoard[from_] == RANK_7:
+        if self.pos.conversion.RanksBoard[from_] == RANK_7:
             # add normal promotion without capture
             move_list.append(get_move_int(from_, to, EMPTY, WHITE_QUEEN, 0))
             move_list.append(get_move_int(from_, to, EMPTY, WHITE_ROOK, 0))
@@ -90,7 +89,7 @@ class MoveGenerator:
         assert self.pos.is_square_on_board(from_)
         assert self.pos.is_square_on_board(to)
 
-        if RanksBoard[from_] == RANK_2:
+        if self.pos.conversion.RanksBoard[from_] == RANK_2:
             # add all promotion with capture related moves
             move_list.append(get_move_int(from_, to, cap, BLACK_QUEEN, 0))
             move_list.append(get_move_int(from_, to, cap, BLACK_ROOK, 0))
@@ -106,7 +105,7 @@ class MoveGenerator:
         assert self.pos.is_square_on_board(from_)
         assert self.pos.is_square_on_board(to)
 
-        if RanksBoard[from_] == RANK_2:
+        if self.pos.conversion.RanksBoard[from_] == RANK_2:
             # add normal promotion without capture
             move_list.append(get_move_int(from_, to, EMPTY, BLACK_QUEEN, 0))
             move_list.append(get_move_int(from_, to, EMPTY, BLACK_ROOK, 0))
@@ -139,7 +138,7 @@ class MoveGenerator:
         if self.pos.pieces[sq + forward_one_sq] == EMPTY:
             move_list = pawn_move_handler(sq, sq + forward_one_sq, move_list)
             # if we are on the second rank, generate a double pawn move if 4th rank sq is empty
-            if RanksBoard[sq] == pawn_rank and self.pos.pieces[sq + forward_two_sq] == EMPTY:
+            if self.pos.conversion.RanksBoard[sq] == pawn_rank and self.pos.pieces[sq + forward_two_sq] == EMPTY:
                 # don't forget to set the flag for PAWN START
                 move_list.append(get_move_int(sq, (sq + forward_two_sq), EMPTY, EMPTY, MOVE_FLAG_PAWN_START))
 
