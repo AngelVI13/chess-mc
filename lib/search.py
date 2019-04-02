@@ -200,6 +200,11 @@ def r_playout_multi(b_: Board, simulations=10000):
     for process in processes:
         process.join()
 
+    # run sequentially
+    # for move in moves:
+    #     node_playout(queue, deepcopy(b_), move, SIDE_TO_PLAYER_MAP[b_.side], avg_simulations,)
+    # node_playout(queue, deepcopy(b_), b_.parse_move('f6a6'), SIDE_TO_PLAYER_MAP[b_.side], avg_simulations)
+
     move_score = []
     while not queue.empty():
         move_score.append(queue.get())
