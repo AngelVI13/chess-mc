@@ -16,7 +16,7 @@ def console_loop(pos: Board):
     pos.parse_fen(START_FEN)
 
     while True:
-        if pos.side == engine_side and get_winner(pos) is None:
+        if pos.side == engine_side and pos.get_result() is None:
             # info.StartTime = time.time()
 
             # if moveTime != 0:
@@ -90,11 +90,11 @@ def console_loop(pos: Board):
         if "genmoves" in command:
             move_list = pos.generate_moves()
 
-            print("Moves found: {}".format(len(move_list)))
+            print("Moves found: {}".format(len(list(move_list))))
             continue
 
         if "getres" in command:
-            print("Winner is: {}".format(get_winner(pos)))
+            print("Winner is: {}".format(pos.get_result()))
             continue
 
         # if "showline" in command: TODO
