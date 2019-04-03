@@ -107,116 +107,116 @@ class OXOState(GameState):
 
 
 # -----------------------------
-PLAYER_X = 1
-PLAYER_O = -1
-NO_PLAYER = 0
-STR_MATRIX = {
-    PLAYER_X: 'X',
-    PLAYER_O: 'O',
-    NO_PLAYER: '-'
-}
-ROWS = 3
-BOARD_SIZE = ROWS*ROWS
-
-
-class Board:
-    def __init__(self):
-        self.pos = [0] * BOARD_SIZE
-        self.playerJustMoved = PLAYER_O
-
-    def __str__(self):
-        lines = []
-        for combo in zip(*[self.pos[i::ROWS] for i in range(ROWS)]):
-            lines.extend(['{:<5}'.format(STR_MATRIX[elem]) for elem in combo])
-            lines.append('\n')
-        return ''.join(lines)
-
-    def __hash__(self):
-        """Hashing function to turn a tttoe position to a single signed integer
-        SUM (3^i)*Vi -> where i is index and Vi is value at index.
-        We are using 3 to the power of index since total number of values to be hashed are 3
-        (0 - empty, 1- player X, -1 - player O)
-        """
-        return sum([(3**i) * self.pos[i] for i in range(BOARD_SIZE)])
-
-    def __copy__(self):
-        _b = Board()
-        _b.pos = self.pos.copy()
-        _b.playerJustMoved = self.playerJustMoved
-        return _b
-
-    def clear(self):
-        self.pos = [0] * BOARD_SIZE
-
-    def make_move(self, move):
-        assert move in self.get_moves(), 'Position is already occupied'
-
-        self.playerJustMoved = -self.playerJustMoved  # change side to move
-        self.pos[move] = self.playerJustMoved
-        # print(self)
-        return self.get_winner(self.pos)
-
-    @classmethod
-    def take_move(cls, move, board):
-        board.pos[move] = NO_PLAYER
-        board.playerJustMoved = -board.playerJustMoved  # change side to move
-
-    def get_moves(self):
-        return [idx for idx, value in enumerate(self.pos) if value == NO_PLAYER]
-
-    @staticmethod
-    def get_winner(pos):
-        cols_combo = [pos[i::ROWS] for i in range(ROWS)]
-        rows_combo = list(zip(*cols_combo))
-        # print(cols_combo)
-        # print(row s_combo)
-
-        for i in range(ROWS):
-            # Sum a row and a column
-            row_result, col_result = sum(rows_combo[i]), sum(cols_combo[i])
-
-            # Check if sum of values of a row is not equal to number of rows i.e. all 1s or all -1s
-            if abs(row_result) == ROWS:
-                return int(row_result / ROWS)
-
-            if abs(col_result) == ROWS:
-                return int(col_result / ROWS)
-
-        # Sum values on Right diagonal
-        # Look at right Diagonal
-        # exclude last element since it is not part of the diagonal
-        # i.e. if you have [1, 2, 3,
-        #                   4, 5, 6,
-        #                   7 ,8 ,9] then right diagonal is [3, 5, 7]
-        # i.e. starting from the right corner the diagonal is formed by every second number
-        # (3, 5, 7), however this will also result in 9 being included which it should not be
-        # therefore we remove it
-        result = sum(pos[ROWS - 1::ROWS - 1][:-1])
-        if abs(result) == ROWS:
-            return int(result / ROWS)
-
-        # Left diagonal
-        result = sum(pos[::ROWS + 1])
-        if abs(result) == ROWS:
-            return int(result / ROWS)
-
-        # Lastly check if no available squares are on the board => TIE
-        if sum([abs(elem) for elem in pos]) == BOARD_SIZE:
-            return NO_PLAYER
-
-    def get_result(self, playerjm):
-        """ Get the game result from the viewpoint of playerjm.
-        """
-        for (x, y, z) in [(0, 1, 2), (3, 4, 5), (6, 7, 8), (0, 3, 6), (1, 4, 7), (2, 5, 8), (0, 4, 8), (2, 4, 6)]:
-            if self.pos[x] == self.pos[y] == self.pos[z]:
-                if self.pos[x] == playerjm:
-                    return 1.0
-                else:
-                    return 0.0
-
-        if not self.get_moves():
-            return 0.5  # draw
-        assert False  # Should not be possible to get here
+# PLAYER_X = 1
+# PLAYER_O = -1
+# NO_PLAYER = 0
+# STR_MATRIX = {
+#     PLAYER_X: 'X',
+#     PLAYER_O: 'O',
+#     NO_PLAYER: '-'
+# }
+# ROWS = 3
+# BOARD_SIZE = ROWS*ROWS
+#
+#
+# class Board:
+#     def __init__(self):
+#         self.pos = [0] * BOARD_SIZE
+#         self.playerJustMoved = PLAYER_O
+#
+#     def __str__(self):
+#         lines = []
+#         for combo in zip(*[self.pos[i::ROWS] for i in range(ROWS)]):
+#             lines.extend(['{:<5}'.format(STR_MATRIX[elem]) for elem in combo])
+#             lines.append('\n')
+#         return ''.join(lines)
+#
+#     def __hash__(self):
+#         """Hashing function to turn a tttoe position to a single signed integer
+#         SUM (3^i)*Vi -> where i is index and Vi is value at index.
+#         We are using 3 to the power of index since total number of values to be hashed are 3
+#         (0 - empty, 1- player X, -1 - player O)
+#         """
+#         return sum([(3**i) * self.pos[i] for i in range(BOARD_SIZE)])
+#
+#     def __copy__(self):
+#         _b = Board()
+#         _b.pos = self.pos.copy()
+#         _b.playerJustMoved = self.playerJustMoved
+#         return _b
+#
+#     def clear(self):
+#         self.pos = [0] * BOARD_SIZE
+#
+#     def make_move(self, move):
+#         assert move in self.get_moves(), 'Position is already occupied'
+#
+#         self.playerJustMoved = -self.playerJustMoved  # change side to move
+#         self.pos[move] = self.playerJustMoved
+#         # print(self)
+#         return self.get_winner(self.pos)
+#
+#     @classmethod
+#     def take_move(cls, move, board):
+#         board.pos[move] = NO_PLAYER
+#         board.playerJustMoved = -board.playerJustMoved  # change side to move
+#
+#     def get_moves(self):
+#         return [idx for idx, value in enumerate(self.pos) if value == NO_PLAYER]
+#
+#     @staticmethod
+#     def get_winner(pos):
+#         cols_combo = [pos[i::ROWS] for i in range(ROWS)]
+#         rows_combo = list(zip(*cols_combo))
+#         # print(cols_combo)
+#         # print(row s_combo)
+#
+#         for i in range(ROWS):
+#             # Sum a row and a column
+#             row_result, col_result = sum(rows_combo[i]), sum(cols_combo[i])
+#
+#             # Check if sum of values of a row is not equal to number of rows i.e. all 1s or all -1s
+#             if abs(row_result) == ROWS:
+#                 return int(row_result / ROWS)
+#
+#             if abs(col_result) == ROWS:
+#                 return int(col_result / ROWS)
+#
+#         # Sum values on Right diagonal
+#         # Look at right Diagonal
+#         # exclude last element since it is not part of the diagonal
+#         # i.e. if you have [1, 2, 3,
+#         #                   4, 5, 6,
+#         #                   7 ,8 ,9] then right diagonal is [3, 5, 7]
+#         # i.e. starting from the right corner the diagonal is formed by every second number
+#         # (3, 5, 7), however this will also result in 9 being included which it should not be
+#         # therefore we remove it
+#         result = sum(pos[ROWS - 1::ROWS - 1][:-1])
+#         if abs(result) == ROWS:
+#             return int(result / ROWS)
+#
+#         # Left diagonal
+#         result = sum(pos[::ROWS + 1])
+#         if abs(result) == ROWS:
+#             return int(result / ROWS)
+#
+#         # Lastly check if no available squares are on the board => TIE
+#         if sum([abs(elem) for elem in pos]) == BOARD_SIZE:
+#             return NO_PLAYER
+#
+#     def get_result(self, playerjm):
+#         """ Get the game result from the viewpoint of playerjm.
+#         """
+#         for (x, y, z) in [(0, 1, 2), (3, 4, 5), (6, 7, 8), (0, 3, 6), (1, 4, 7), (2, 5, 8), (0, 4, 8), (2, 4, 6)]:
+#             if self.pos[x] == self.pos[y] == self.pos[z]:
+#                 if self.pos[x] == playerjm:
+#                     return 1.0
+#                 else:
+#                     return 0.0
+#
+#         if not self.get_moves():
+#             return 0.5  # draw
+#         assert False  # Should not be possible to get here
 
 # -----------------------------
 
@@ -306,7 +306,7 @@ def uct(rootstate, itermax, verbose=False):
             node = node.add_child(m, state)  # add child and descend tree
 
         # Rollout - this can often be made orders of magnitude quicker using a state.GetRandomMove() function
-        while state.get_moves():  # while state is non-terminal
+        while state.get_result(state.side) is None:  # while state is non-terminal
             state.make_move(random.choice(state.get_moves()))
 
         # Backpropagate
@@ -329,15 +329,20 @@ def uct_play_game():
         of UCT iterations (= simulations = tree nodes).
     """
     # state = OXOState()  # uncomment to play OXO
+    from lib.board import Board
+    from lib.constants import WHITE
     state = Board()
+    mate_in_2 = '3k4/Q7/8/3K4/8/8/8/8 w --'
+    state.parse_fen(mate_in_2)
 
     while state.get_moves():
         print(state)
-        if state.playerJustMoved == 1:
-            m = uct(rootstate=state, itermax=20000, verbose=False)  # play with values for itermax and verbose = True
-        else:
-            # m = uct(rootstate=state, itermax=100, verbose=False)
-            m = int(input('Enter move:'))
+        # if state.playerJustMoved == WHITE:
+        #     m = uct(rootstate=state, itermax=20000, verbose=False)  # play with values for itermax and verbose = True
+        # else:
+        #     # m = uct(rootstate=state, itermax=100, verbose=False)
+        #     m = int(input('Enter move:'))
+        m = uct(rootstate=state, itermax=20000, verbose=False)  # play with values for itermax and verbose = True
         print("Best Move: " + str(m) + "\n")
         state.make_move(m)
     if state.get_result(state.playerJustMoved) == 1.0:

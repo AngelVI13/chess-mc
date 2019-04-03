@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 from lib.constants import *
 from lib.conversion import Conversion, convert_file_rank_to_square
 from lib.movegenerator import MoveGenerator
@@ -8,6 +10,7 @@ class Board:
     def __init__(self):
         self.pieces: List[int] = [0] * BOARD_SQUARE_NUMBER
         self.side: int = 0
+        self.playerJustMoved: int = BLACK  # At the root pretend the player just moved is p2 - p1 has the first move
         self.castlePermissions: int = 0  # castle permissions
         # position key is a unique key stored for each position (used to keep track of 3fold repetition)
         self.posKey: c_uint64 = c_uint64(0)
@@ -102,6 +105,9 @@ class Board:
 
         return c_uint64(final_key)
 
+    def __copy__(self):
+        return deepcopy(self)
+
     def reset(self):
         # Set all board positions to OFF_BOARD
         for i in range(BOARD_SQUARE_NUMBER):
@@ -176,6 +182,7 @@ class Board:
         assert (char == "w" or char == "b")
 
         self.side = WHITE if char == "w" else BLACK
+        self.playerJustMoved = BLACK if self.side == WHITE else WHITE
 
         # move character pointer 2 characters further and it should now point to
         # the start of the castling permissions part of FEN
@@ -376,6 +383,9 @@ class Board:
     def generate_moves(self):
         return filter(lambda move: self.is_move_legal(move), self.moveGenerator.generate_all_moves())
 
+    def get_moves(self):  # needed for uct simulation
+        return list(self.generate_moves())
+
     def is_move_legal(self, move_: int) -> bool:
         """Does a simplified version of make_move, however it does not update any hashtables or special squares.
         it only makes a move and checks that the side to move is still in check after the move => move is illegal.
@@ -569,6 +579,7 @@ class Board:
 
                 self.hashData.hash_enpassant(self)  # hash in the enpass
 
+        self.playerJustMoved ^= 1
         self.move_piece(from_, to)
 
         # get promoted piece and if its not empty, clear old piece (pawn)
@@ -620,6 +631,7 @@ class Board:
 
         self.hashData.hash_castle_permissions(self)
 
+        self.playerJustMoved ^= 1
         self.side ^= 1
         self.hashData.hash_side(self)
 
@@ -729,20 +741,20 @@ class Board:
 
         return True
 
-    def get_result(self):
+    def get_result(self, player_jm):
         """is called every time a move is made this method is called to check if the game is ended"""
 
         if self.fiftyMove > 100:
             # print("1/2-1/2:fifty move rule (claimed by Hugo)\n")
-            return NO_PLAYER
+            return DRAW
 
         if self.get_threefold_repetition_count() >= 2:
             # print("1/2-1/2:3-fold repetition (claimed by Hugo)\n")
-            return NO_PLAYER
+            return DRAW
 
         if self.is_position_draw():
             # print("1/2-1/2:insufficient material (claimed by Hugo)\n")
-            return NO_PLAYER
+            return DRAW
 
         # we have legal moves -> game is not over
         if len(list(self.generate_moves())) != 0:
@@ -751,12 +763,12 @@ class Board:
         in_check = self.is_square_attacked(self.kingSquare[self.side], self.side ^ 1)
 
         if in_check:
-            if self.side == WHITE:
+            if self.side == player_jm:  # if i am the side in mate -> loss, else win
                 # print("0-1:black mates (claimed by Hugo)\n")
-                return PLAYER_BLACK
+                return LOSS
 
             # print("1-0:white mates (claimed by Hugo)\n")
-            return PLAYER_WHITE
+            return WIN
 
         # not in check but no legal moves left -> stalemate
         # print("\n1/2-1/2:stalemate (claimed by Hugo)\n")
