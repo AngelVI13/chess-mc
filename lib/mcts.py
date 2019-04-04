@@ -17,6 +17,7 @@
 
 from math import *
 import random
+from multiprocessing import Queue, Process
 
 from lib.board import Board
 
@@ -111,6 +112,18 @@ class Node:
         for c in self.childNodes:
             s += str(c) + "\n"
         return s
+
+
+def uct_multi(rootstate: Board, itermax, verbose):
+    moves = rootstate.get_moves()
+    avg_iters = itermax // len(moves)
+    queue = Queue()
+
+    processes = []
+    for move in moves:
+
+        rootstate.make_move(move)
+        p = Process(target=uct, args=())
 
 
 def uct(rootstate, itermax, verbose=False):
