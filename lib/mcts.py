@@ -14,10 +14,11 @@
 # remains in any distributed code.
 # 
 # For more information about Monte Carlo Tree Search check out our web site at www.mcts.ai
-
+import time
 from math import *
 import random
 from multiprocessing import Queue, Process
+from operator import itemgetter
 
 from lib.board import Board
 
@@ -121,17 +122,41 @@ def uct_multi(rootstate: Board, itermax, verbose):
 
     processes = []
     for move in moves:
+        current_state = rootstate.__copy__()
+        current_state.make_move(move)
+        p = Process(target=uct, args=(queue, move, current_state, avg_iters, verbose))
+        p.start()
+        processes.append(p)
 
-        rootstate.make_move(move)
-        p = Process(target=uct, args=())
+    for process in processes:
+        process.join()
+    # for move in moves:
+    #     state = rootstate.__copy__()
+    #     state.make_move(move)
+    #     uct(queue, move, state, avg_iters, verbose)
+
+    results = []
+    while not queue.empty():
+        move, best_enemy_reply, wins, visits = queue.get()
+        # print("Move: {}, Best Enemy Reply: {}, Score: {}".format(
+        #     rootstate.moveGenerator.print_move(move),
+        #     rootstate.moveGenerator.print_move(best_enemy_reply), wins/visits))
+        results.append((move, wins/visits))
+
+    # the score here refers to the score of the best enemy reply -> we choose a move which leads to a best enemy reply
+    # with the least score
+    best_move, score = sorted(results, key=itemgetter(1))[0]
+    return best_move
 
 
-def uct(rootstate, itermax, verbose=False):
+def uct(queue: Queue, move_origin, rootstate, itermax, verbose=False):
     """ Conduct a UCT search for itermax iterations starting from rootstate.
         Return the best move from the rootstate.
         Assumes 2 alternating players (player 1 starts), with game results in the range [0.0, 1.0]."""
 
+    # print(rootstate)
     rootnode = Node(state=rootstate)
+    # print(rootnode.untriedMoves)
 
     for i in range(itermax):
         node = rootnode
@@ -139,6 +164,7 @@ def uct(rootstate, itermax, verbose=False):
 
         # Select
         while node.untriedMoves == [] and node.childNodes != []:  # node is fully expanded and non-terminal
+            # print("select")
             node = node.uct_select_child()
             state.make_move(node.move)
 
@@ -146,7 +172,9 @@ def uct(rootstate, itermax, verbose=False):
         if node.untriedMoves:  # if we can expand (i.e. state/node is non-terminal)
             m = random.choice(node.untriedMoves)
             state.make_move(m)
+            # print(state)
             node = node.add_child(m, state)  # add child and descend tree
+            # print(rootnode.childNodes)
 
         # Rollout - this can often be made orders of magnitude quicker using a state.GetRandomMove() function
         while state.get_result(state.side) is None:  # while state is non-terminal
@@ -159,12 +187,14 @@ def uct(rootstate, itermax, verbose=False):
             node = node.parentNode
 
     # Output some information about the tree - can be omitted
-    if verbose:
-        print(rootnode.convert_tree_to_string(0))
-    else:
-        print(rootnode.convert_children_to_string())
+    # if verbose:
+    #     print(rootnode.convert_tree_to_string(0))
+    # else:
+    #     print(rootnode.convert_children_to_string())
 
-    return sorted(rootnode.childNodes, key=lambda c: c.visits)[-1].move  # return the move that was most visited
+    # return sorted(rootnode.childNodes, key=lambda c: c.visits)[-1].move  # return the move that was most visited
+    bestNode = sorted(rootnode.childNodes, key=lambda c: c.visits)[-1]
+    queue.put((move_origin, bestNode.move, bestNode.wins, bestNode.visits))
 
 
 def uct_play_game():
@@ -178,7 +208,7 @@ def uct_play_game():
 
     while state.get_moves():
         print(state)
-        m = uct(rootstate=state, itermax=2000, verbose=False)  # play with values for itermax and verbose = True
+        m = uct_multi(rootstate=state, itermax=2000, verbose=False)  # play with values for itermax and verbose = True
         print("Best Move: " + state.moveGenerator.print_move(m) + "\n")
         state.make_move(m)
     print(state)
@@ -193,4 +223,14 @@ def uct_play_game():
 if __name__ == "__main__":
     """ Play a single game to the end using UCT for both players. 
     """
-    uct_play_game()
+    # uct_play_game()
+    state = Board()
+    # mate_in_2 = '3k4/Q7/8/3K4/8/8/8/8 w --'
+    mate_in_3 = 'r5rk/5p1p/5R2/4B3/8/8/7P/7K w --'
+    state.parse_fen(mate_in_3)
+    print(state)
+    start = time.time()
+    m = uct_multi(state, itermax=10000, verbose=False)
+    print('Time it took', time.time()-start)
+    state.make_move(m)
+    print(state)
