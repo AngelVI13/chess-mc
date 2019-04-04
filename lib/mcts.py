@@ -18,6 +18,8 @@
 from math import *
 import random
 
+from lib.board import Board
+
 
 class GameState:
     """ A state of the game, i.e. the game board. These are the only functions which are
@@ -47,178 +49,6 @@ class GameState:
         """ Get the game result from the viewpoint of playerjm. 
         """
         raise NotImplementedError
-
-
-class OXOState(GameState):
-    """ A state of the game, i.e. the game board.
-        Squares in the board are in this arrangement
-        012
-        345
-        678
-        where 0 = empty, 1 = player 1 (X), 2 = player 2 (O)
-    """
-
-    def __init__(self):
-        self.playerJustMoved = 2  # At the root pretend the player just moved is p2 - p1 has the first move
-        self.board = [0, 0, 0, 0, 0, 0, 0, 0, 0]  # 0 = empty, 1 = player 1, 2 = player 2
-
-    def __copy__(self):
-        """ Create a deep clone of this game state.
-        """
-        st = OXOState()
-        st.playerJustMoved = self.playerJustMoved
-        st.board = self.board[:]
-        return st
-
-    def make_move(self, move):
-        """ Update a state by carrying out the given move.
-            Must update playerToMove.
-        """
-        assert 0 <= move <= 8 and self.board[move] == 0
-        self.playerJustMoved = 3 - self.playerJustMoved
-        self.board[move] = self.playerJustMoved
-
-    def get_moves(self):
-        """ Get all possible moves from this state.
-        """
-        return [i for i in range(9) if self.board[i] == 0]
-
-    def get_result(self, playerjm):
-        """ Get the game result from the viewpoint of playerjm. 
-        """
-        for (x, y, z) in [(0, 1, 2), (3, 4, 5), (6, 7, 8), (0, 3, 6), (1, 4, 7), (2, 5, 8), (0, 4, 8), (2, 4, 6)]:
-            if self.board[x] == self.board[y] == self.board[z]:
-                if self.board[x] == playerjm:
-                    return 1.0
-                else:
-                    return 0.0
-
-        if not self.get_moves():
-            return 0.5  # draw
-        assert False  # Should not be possible to get here
-
-    def __repr__(self):
-        s = ""
-        for i in range(9):
-            s += ".XO"[self.board[i]]
-            if i % 3 == 2:
-                s += "\n"
-        return s
-
-
-# -----------------------------
-# PLAYER_X = 1
-# PLAYER_O = -1
-# NO_PLAYER = 0
-# STR_MATRIX = {
-#     PLAYER_X: 'X',
-#     PLAYER_O: 'O',
-#     NO_PLAYER: '-'
-# }
-# ROWS = 3
-# BOARD_SIZE = ROWS*ROWS
-#
-#
-# class Board:
-#     def __init__(self):
-#         self.pos = [0] * BOARD_SIZE
-#         self.playerJustMoved = PLAYER_O
-#
-#     def __str__(self):
-#         lines = []
-#         for combo in zip(*[self.pos[i::ROWS] for i in range(ROWS)]):
-#             lines.extend(['{:<5}'.format(STR_MATRIX[elem]) for elem in combo])
-#             lines.append('\n')
-#         return ''.join(lines)
-#
-#     def __hash__(self):
-#         """Hashing function to turn a tttoe position to a single signed integer
-#         SUM (3^i)*Vi -> where i is index and Vi is value at index.
-#         We are using 3 to the power of index since total number of values to be hashed are 3
-#         (0 - empty, 1- player X, -1 - player O)
-#         """
-#         return sum([(3**i) * self.pos[i] for i in range(BOARD_SIZE)])
-#
-#     def __copy__(self):
-#         _b = Board()
-#         _b.pos = self.pos.copy()
-#         _b.playerJustMoved = self.playerJustMoved
-#         return _b
-#
-#     def clear(self):
-#         self.pos = [0] * BOARD_SIZE
-#
-#     def make_move(self, move):
-#         assert move in self.get_moves(), 'Position is already occupied'
-#
-#         self.playerJustMoved = -self.playerJustMoved  # change side to move
-#         self.pos[move] = self.playerJustMoved
-#         # print(self)
-#         return self.get_winner(self.pos)
-#
-#     @classmethod
-#     def take_move(cls, move, board):
-#         board.pos[move] = NO_PLAYER
-#         board.playerJustMoved = -board.playerJustMoved  # change side to move
-#
-#     def get_moves(self):
-#         return [idx for idx, value in enumerate(self.pos) if value == NO_PLAYER]
-#
-#     @staticmethod
-#     def get_winner(pos):
-#         cols_combo = [pos[i::ROWS] for i in range(ROWS)]
-#         rows_combo = list(zip(*cols_combo))
-#         # print(cols_combo)
-#         # print(row s_combo)
-#
-#         for i in range(ROWS):
-#             # Sum a row and a column
-#             row_result, col_result = sum(rows_combo[i]), sum(cols_combo[i])
-#
-#             # Check if sum of values of a row is not equal to number of rows i.e. all 1s or all -1s
-#             if abs(row_result) == ROWS:
-#                 return int(row_result / ROWS)
-#
-#             if abs(col_result) == ROWS:
-#                 return int(col_result / ROWS)
-#
-#         # Sum values on Right diagonal
-#         # Look at right Diagonal
-#         # exclude last element since it is not part of the diagonal
-#         # i.e. if you have [1, 2, 3,
-#         #                   4, 5, 6,
-#         #                   7 ,8 ,9] then right diagonal is [3, 5, 7]
-#         # i.e. starting from the right corner the diagonal is formed by every second number
-#         # (3, 5, 7), however this will also result in 9 being included which it should not be
-#         # therefore we remove it
-#         result = sum(pos[ROWS - 1::ROWS - 1][:-1])
-#         if abs(result) == ROWS:
-#             return int(result / ROWS)
-#
-#         # Left diagonal
-#         result = sum(pos[::ROWS + 1])
-#         if abs(result) == ROWS:
-#             return int(result / ROWS)
-#
-#         # Lastly check if no available squares are on the board => TIE
-#         if sum([abs(elem) for elem in pos]) == BOARD_SIZE:
-#             return NO_PLAYER
-#
-#     def get_result(self, playerjm):
-#         """ Get the game result from the viewpoint of playerjm.
-#         """
-#         for (x, y, z) in [(0, 1, 2), (3, 4, 5), (6, 7, 8), (0, 3, 6), (1, 4, 7), (2, 5, 8), (0, 4, 8), (2, 4, 6)]:
-#             if self.pos[x] == self.pos[y] == self.pos[z]:
-#                 if self.pos[x] == playerjm:
-#                     return 1.0
-#                 else:
-#                     return 0.0
-#
-#         if not self.get_moves():
-#             return 0.5  # draw
-#         assert False  # Should not be possible to get here
-
-# -----------------------------
 
 
 class Node:
@@ -328,23 +158,17 @@ def uct_play_game():
     """ Play a sample game between two UCT players where each player gets a different number 
         of UCT iterations (= simulations = tree nodes).
     """
-    # state = OXOState()  # uncomment to play OXO
-    from lib.board import Board
-    from lib.constants import WHITE
     state = Board()
-    mate_in_2 = '3k4/Q7/8/3K4/8/8/8/8 w --'
-    state.parse_fen(mate_in_2)
+    # mate_in_2 = '3k4/Q7/8/3K4/8/8/8/8 w --'
+    mate_in_3 = 'r5rk/5p1p/5R2/4B3/8/8/7P/7K w --'
+    state.parse_fen(mate_in_3)
 
     while state.get_moves():
         print(state)
-        # if state.playerJustMoved == WHITE:
-        #     m = uct(rootstate=state, itermax=20000, verbose=False)  # play with values for itermax and verbose = True
-        # else:
-        #     # m = uct(rootstate=state, itermax=100, verbose=False)
-        #     m = int(input('Enter move:'))
-        m = uct(rootstate=state, itermax=20000, verbose=False)  # play with values for itermax and verbose = True
-        print("Best Move: " + str(m) + "\n")
+        m = uct(rootstate=state, itermax=2000, verbose=False)  # play with values for itermax and verbose = True
+        print("Best Move: " + state.moveGenerator.print_move(m) + "\n")
         state.make_move(m)
+    print(state)
     if state.get_result(state.playerJustMoved) == 1.0:
         print("Player " + str(state.playerJustMoved) + " wins!")
     elif state.get_result(state.playerJustMoved) == 0.0:
