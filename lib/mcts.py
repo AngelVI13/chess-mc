@@ -208,7 +208,7 @@ def uct_play_game():
 
     while state.get_moves():
         print(state)
-        m = uct_multi(rootstate=state, itermax=2000, verbose=False)  # play with values for itermax and verbose = True
+        m = uct_multi(rootstate=state, itermax=10000, verbose=False)  # play with values for itermax and verbose = True
         print("Best Move: " + state.moveGenerator.print_move(m) + "\n")
         state.make_move(m)
     print(state)
@@ -223,14 +223,17 @@ def uct_play_game():
 if __name__ == "__main__":
     """ Play a single game to the end using UCT for both players. 
     """
-    # uct_play_game()
-    state = Board()
-    # mate_in_2 = '3k4/Q7/8/3K4/8/8/8/8 w --'
-    mate_in_3 = 'r5rk/5p1p/5R2/4B3/8/8/7P/7K w --'
-    state.parse_fen(mate_in_3)
-    print(state)
-    start = time.time()
-    m = uct_multi(state, itermax=10000, verbose=False)
-    print('Time it took', time.time()-start)
-    state.make_move(m)
-    print(state)
+    uct_play_game()
+    # todo reuse tree from previous search
+    # todo optimize/remove/reduce copying for boards (remove filesboard init somewhere else and call externally)
+    # todo optimize get_random_move method
+    # state = Board()
+    # # mate_in_2 = '3k4/Q7/8/3K4/8/8/8/8 w --'
+    # mate_in_3 = 'r5rk/5p1p/5R2/4B3/8/8/7P/7K w --'
+    # state.parse_fen(mate_in_3)
+    # print(state)
+    # start = time.time()
+    # m = uct_multi(state, itermax=10000, verbose=False)
+    # print('Time it took', time.time()-start)
+    # state.make_move(m)
+    # print(state)
