@@ -76,6 +76,39 @@ class Board:
 
         return ''.join(board_rep)
 
+    def __eq__(self, other):
+        if not len(self.pieces) == sum([1 for i, j in zip(self.pieces, other.pieces) if i == j]):
+            return False
+
+        if self.side != other.side:
+            return False
+
+        if self.playerJustMoved != other.playerJustMoved:
+            return False
+
+        if self.castlePermissions != other.castlePermissions:
+            return False
+
+        if self.posKey.value != other.posKey.value:
+            return False
+
+        if not len(self.kingSquare) == sum([1 for i, j in zip(self.kingSquare, other.kingSquare) if i == j]):
+            return False
+
+        if self.enPassantSquare != other.enPassantSquare:
+            return False
+
+        if self.fiftyMove != other.fiftyMove:
+            return False
+
+        if self.histPly != other.histPly:
+            return False
+
+        if not len(self.pieceNumber) == sum([1 for i, j in zip(self.pieceNumber, other.pieceNumber) if i == j]):
+            return False
+
+        return True
+
     def __hash__(self):
         """Generate a unique hashkey for a given position"""
         final_key: c_uint64 = 0
