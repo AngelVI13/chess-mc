@@ -137,10 +137,7 @@ def uct_multi(rootstate: Board, itermax, verbose):
 
     results = []
     while not queue.empty():
-        move, best_enemy_reply, wins, visits = queue.get()
-        # print("Move: {}, Best Enemy Reply: {}, Score: {}".format(
-        #     rootstate.moveGenerator.print_move(move),
-        #     rootstate.moveGenerator.print_move(best_enemy_reply), wins/visits))
+        move, wins, visits = queue.get()
         results.append((move, wins/visits))
 
     # the score here refers to the score of the best enemy reply -> we choose a move which leads to a best enemy reply
@@ -149,47 +146,44 @@ def uct_multi(rootstate: Board, itermax, verbose):
     return best_move
 
 
+def rand_choice(x):  # fastest way to get random item from list
+    return x[int(random.random() * len(x))]
+
+
 def uct(queue: Queue, move_origin, rootstate, itermax, verbose=False):
     """ Conduct a UCT search for itermax iterations starting from rootstate.
         Return the best move from the rootstate.
         Assumes 2 alternating players (player 1 starts), with game results in the range [0.0, 1.0]."""
 
-    # print(rootstate)
     rootnode = Node(state=rootstate)
-    # print(rootnode.untriedMoves)
 
-    # state = rootstate.__copy__()
     state = rootstate
     for i in range(itermax):
-        # print(state == rootstate)
         node = rootnode
         moves_to_root = 0
 
         # Select
-        while node.untriedMoves == [] and node.childNodes != []:  # node is fully expanded and non-terminal
-            # print("select")
+        while not node.untriedMoves and node.childNodes:  # node is fully expanded and non-terminal
             node = node.uct_select_child()
             state.make_move(node.move)
             moves_to_root += 1
 
         # Expand
         if node.untriedMoves:  # if we can expand (i.e. state/node is non-terminal)
-            m = random.choice(node.untriedMoves)
+            m = rand_choice(node.untriedMoves)
             state.make_move(m)
             moves_to_root += 1
-            # print(state)
             node = node.add_child(m, state)  # add child and descend tree
-            # print(rootnode.childNodes)
 
         # Rollout - this can often be made orders of magnitude quicker using a state.GetRandomMove() function
         while state.get_result(state.side) is None:  # while state is non-terminal
-            state.make_move(random.choice(state.get_moves()))
+            state.make_move(rand_choice(state.get_moves()))
             moves_to_root += 1
 
         # Backpropagate
         while node is not None:  # backpropagate from the expanded node and work back to the root node
-            node.update(state.get_result(
-                node.playerJustMoved))  # state is terminal. Update node with result from POV of node.playerJustMoved
+            # state is terminal. Update node with result from POV of node.playerJustMoved
+            node.update(state.get_result(node.playerJustMoved))
             node = node.parentNode
 
         for _ in range(moves_to_root):
@@ -203,7 +197,7 @@ def uct(queue: Queue, move_origin, rootstate, itermax, verbose=False):
 
     # return sorted(rootnode.childNodes, key=lambda c: c.visits)[-1].move  # return the move that was most visited
     bestNode = sorted(rootnode.childNodes, key=lambda c: c.visits)[-1]
-    queue.put((move_origin, bestNode.move, bestNode.wins, bestNode.visits))
+    queue.put((move_origin, bestNode.wins, bestNode.visits))
 
 
 def uct_play_game():
@@ -245,3 +239,13 @@ if __name__ == "__main__":
     # print('Time it took', time.time()-start)
     # state.make_move(m)
     # print(state)
+
+    # results = []
+    # item = [1, 3, 4]
+    # for _ in range(10000):
+    #     start = time.time()
+    #     if not item:
+    #         pass
+    #     results.append(time.time()-start)
+    #
+    # print('Avg: ', sum(results)/ len(results))
