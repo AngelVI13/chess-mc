@@ -115,7 +115,7 @@ class Node:
         return s
 
 
-def uct_multi(rootstate: Board, itermax, verbose):
+def uct_multi(rootstate: Board, itermax):
     moves = rootstate.get_moves()
     avg_iters = itermax // len(moves)
     queue = Queue()
@@ -124,7 +124,7 @@ def uct_multi(rootstate: Board, itermax, verbose):
     for move in moves:
         current_state = rootstate.__copy__()
         current_state.make_move(move)
-        p = Process(target=uct, args=(queue, move, current_state, avg_iters, verbose))
+        p = Process(target=uct, args=(queue, move, current_state, avg_iters))
         p.start()
         processes.append(p)
 
@@ -150,7 +150,7 @@ def rand_choice(x):  # fastest way to get random item from list
     return x[int(random.random() * len(x))]
 
 
-def uct(queue: Queue, move_origin, rootstate, itermax, verbose=False):
+def uct(queue: Queue, move_origin, rootstate, itermax):
     """ Conduct a UCT search for itermax iterations starting from rootstate.
         Return the best move from the rootstate.
         Assumes 2 alternating players (player 1 starts), with game results in the range [0.0, 1.0]."""
@@ -189,15 +189,9 @@ def uct(queue: Queue, move_origin, rootstate, itermax, verbose=False):
         for _ in range(moves_to_root):
             state.take_move()
 
-    # Output some information about the tree - can be omitted
-    # if verbose:
-    #     print(rootnode.convert_tree_to_string(0))
-    # else:
-    #     print(rootnode.convert_children_to_string())
-
     # return sorted(rootnode.childNodes, key=lambda c: c.visits)[-1].move  # return the move that was most visited
-    bestNode = sorted(rootnode.childNodes, key=lambda c: c.visits)[-1]
-    queue.put((move_origin, bestNode.wins, bestNode.visits))
+    best_node = sorted(rootnode.childNodes, key=lambda c: c.visits)[-1]
+    queue.put((move_origin, best_node.wins, best_node.visits))
 
 
 def uct_play_game():
@@ -212,7 +206,7 @@ def uct_play_game():
     while state.get_moves():
         print(state)
         start = time.time()
-        m = uct_multi(rootstate=state, itermax=10000, verbose=False)  # play with values for itermax and verbose = True
+        m = uct_multi(rootstate=state, itermax=400)  # play with values for itermax and verbose = True
         print('Time it took', time.time() - start)
         print("Best Move: " + state.moveGenerator.print_move(m) + "\n")
         state.make_move(m)
