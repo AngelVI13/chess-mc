@@ -805,7 +805,7 @@ class Board:
 
         # not in check but no legal moves left -> stalemate
         # print("\n1/2-1/2:stalemate (claimed by Hugo)\n")
-        return NO_PLAYER
+        return DRAW
 
 
 if __name__ == '__main__':

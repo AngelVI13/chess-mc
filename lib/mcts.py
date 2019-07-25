@@ -117,6 +117,9 @@ class Node:
 
 def uct_multi(rootstate: Board, itermax, verbose):
     moves = rootstate.get_moves()
+    if len(moves) == 1:
+        return moves[0]
+
     avg_iters = itermax // len(moves)
     queue = Queue()
 
@@ -124,6 +127,12 @@ def uct_multi(rootstate: Board, itermax, verbose):
     for move in moves:
         current_state = rootstate.__copy__()
         current_state.make_move(move)
+        result = current_state.get_result(current_state.playerJustMoved ^ 1)
+        if result is not None:
+            print(f'Immediate result. Move: {rootstate.moveGenerator.print_move(move)}, score: {result}')
+            queue.put((move, result, 1))
+            continue  # here 1 referes to number of visits
+
         p = Process(target=uct, args=(queue, move, current_state, avg_iters, verbose))
         p.start()
         processes.append(p)
@@ -138,6 +147,7 @@ def uct_multi(rootstate: Board, itermax, verbose):
     results = []
     while not queue.empty():
         move, wins, visits = queue.get()
+        print(f'Move: {rootstate.moveGenerator.print_move(move)}, score: {wins / visits}')
         results.append((move, wins/visits))
 
     # the score here refers to the score of the best enemy reply -> we choose a move which leads to a best enemy reply
@@ -162,11 +172,27 @@ def uct(queue: Queue, move_origin, rootstate, itermax, verbose=False):
         node = rootnode
         moves_to_root = 0
 
+        game_over = False
         # Select
         while not node.untriedMoves and node.childNodes:  # node is fully expanded and non-terminal
             node = node.uct_select_child()
             state.make_move(node.move)
             moves_to_root += 1
+            if state.get_result(state.playerJustMoved) is not None:
+                # Backpropagate
+                while node is not None:  # backpropagate from the expanded node and work back to the root node
+                    # state is terminal. Update node with result from POV of node.playerJustMoved
+                    result = state.get_result(node.playerJustMoved)
+                    node.update(result)
+                    node = node.parentNode
+
+                for _ in range(moves_to_root):
+                    state.take_move()
+
+                game_over = True
+                break
+        if game_over:
+            continue
 
         # Expand
         if node.untriedMoves:  # if we can expand (i.e. state/node is non-terminal)
@@ -228,17 +254,18 @@ def uct_play_game():
 if __name__ == "__main__":
     """ Play a single game to the end using UCT for both players. 
     """
-    uct_play_game()
-    # state = Board()
+    # uct_play_game()
+    state = Board()
     # mate_in_2 = '3k4/Q7/8/3K4/8/8/8/8 w --'
-    # mate_in_3 = 'r5rk/5p1p/5R2/4B3/8/8/7P/7K w --'
-    # state.parse_fen(mate_in_2)
-    # print(state)
-    # start = time.time()
-    # m = uct_multi(state, itermax=4000, verbose=False)
-    # print('Time it took', time.time()-start)
-    # state.make_move(m)
-    # print(state)
+    mate_in_3 = 'r5rk/5p1p/5R2/4B3/8/8/7P/7K w --'
+    state.parse_fen(mate_in_3)
+    print(state)
+    while state.get_result(state.playerJustMoved) is None:
+        start = time.time()
+        m = uct_multi(state, itermax=4000, verbose=False)
+        print('Time it took', time.time()-start)
+        state.make_move(m)
+        print(state)
 
     # results = []
     # item = [1, 3, 4]
