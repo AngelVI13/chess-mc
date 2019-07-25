@@ -226,7 +226,7 @@ def uct_play_game():
     """
     state = Board()
     # mate_in_2 = '3k4/Q7/8/3K4/8/8/8/8 w --'
-    mate_in_3 = 'r5rk/5p1p/5R2/4B3/8/8/7P/7K w --'
+    mate_in_3 = 'r5rk/5p1p/5R2/4B3/8/8/7P/7K w --'  # todo investigate result after rxf7 rg7
     state.parse_fen(mate_in_3)
 
     while state.get_moves():
